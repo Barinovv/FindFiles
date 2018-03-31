@@ -1,0 +1,133 @@
+package ru.bav.find;
+
+import java.io.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * В данном классе поиск текста в файлах и дальнейшая запись в результирующий файл результатов поиска.
+ *
+ * @author Barinov Anton 15IT18
+ */
+
+public class Find extends Thread{
+    private File file;
+
+    private String text;
+
+    private static volatile BufferedWriter resultfile;
+
+    Find(File file, String text) {
+        this.file = file;
+        this.text = text;
+    }
+
+    /**
+     * Метод, с помощью которого происходит запись в результирующий файл.
+     */
+
+    private synchronized void writeFoundedText(String str) {
+        try {
+            resultfile.write(str + "\n");
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+    }
+
+    /**
+     * Метод, в котором указывается, с какой директории нужно начать поиск и какие слова нужно найти.
+     *
+     * @param pathDirectory - каталог поиска
+     * @param textForFind - сообщение для поиска
+     */
+
+    private static void fileExplorer(File pathDirectory, String textForFind) {
+        try {
+            File[] files = pathDirectory.listFiles();
+            assert files != null; //утверждение что файл не пустой
+            for (int i = 0; i < files.length; i++) {
+                if (files[i].isFile() && files[i].getName().matches(".*\\.txt$")) { //true или false если строка соответствует регулярке
+                     Find thread = new Find(files[i], textForFind);
+                    thread.start();
+                    waitingForEndOfThread(thread);
+                } else if (files[i].isDirectory()) {
+                    fileExplorer(files[i], textForFind);
+                }
+            }
+        } catch (NullPointerException e) {
+        }
+    }
+
+    @Override
+    public void run() {
+
+        String string;
+        Pattern findStr = Pattern.compile(text); // скомпилированная регулярка
+        Matcher matcherFindStr; //хранит результат
+
+        try (BufferedReader inFile = new BufferedReader(new FileReader(file))) {
+            for (int i = 1; (string = inFile.readLine()) != null; i++) {
+
+                matcherFindStr = findStr.matcher(string);
+
+                if (matcherFindStr.find()) {
+                    writeFoundedText("Путь: " + file.getPath() + "; Текст введенный для поиска: " + matcherFindStr.group() +
+                            "; Найден в строке : " + i + "\r");
+                }
+            }
+        } catch (IOException e) {
+
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Метод запускает метод fileExplorer, который ищет подходящие файлы.
+     *
+     * @param path - путь в котором производится поиск.
+     * @param text - введенный пользователем текст.
+     * @throws IOException исключения.
+     */
+
+    public static void main(File path, String text) throws IOException {
+
+        try {
+
+            resultfile = new BufferedWriter(new FileWriter("src\\ru\\bav\\find\\resultfile.txt"));
+
+            BufferedReader reader = new BufferedReader(new FileReader("src\\ru\\bav\\find\\resultfile.txt"));
+
+            fileExplorer(path, text);
+
+            String string;
+
+            if (reader.read()==-1){
+                System.out.println("Такого текста не существует в проверенных файлах.");
+            }else {
+                System.out.println("Текст найден. Результаты поиска записаны в файл 'resultfile.txt'.");
+            }
+
+            resultfile.close();
+
+        } catch (NullPointerException e) {
+
+        }
+
+    }
+
+    /**
+     * Метод, который ждет завершения потока.
+     *
+     * @param thread - поток.
+     */
+
+    private static void waitingForEndOfThread(Thread thread){
+        try {
+            if (thread.isAlive()){
+                thread.join();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
